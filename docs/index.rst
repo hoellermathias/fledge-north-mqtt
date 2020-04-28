@@ -25,7 +25,7 @@ To create a north task to send to another Fledge you should first create the |ht
 
   - Click on the + icon in the top left
 
-  - Choose http_nort from the plugin selection list
+  - Choose http_north from the plugin selection list
 
   - Name your task
 
