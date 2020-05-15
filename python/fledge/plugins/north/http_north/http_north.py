@@ -9,7 +9,6 @@
 import aiohttp
 import asyncio
 import json
-import uuid
 
 from fledge.common import logger
 from fledge.plugins.north.common.common import *
@@ -77,7 +76,7 @@ _DEFAULT_CONFIG = {
 def plugin_info():
     return {
         'name': 'http',
-        'version': '1.7.0',
+        'version': '1.8.0',
         'type': 'north',
         'interface': '1.0',
         'config': _DEFAULT_CONFIG
@@ -129,7 +128,6 @@ class HttpNorthPlugin(object):
                 read["asset"] = p['asset_code']
                 read["readings"] = p['reading']
                 read["timestamp"] = p['user_ts']
-                read["key"] = str(uuid.uuid4())  # p['read_key']
                 payload_block.append(read)
 
             num_sent = await self._send_payloads(payload_block)
