@@ -4,11 +4,11 @@
 .. Links
 .. |http-c| raw:: html
 
-   <a href="../fledge-north-http-c/index.html">C++ version</a>
+   <a href="../fledge-north-httpc/index.html">C++ version</a>
 
 .. |http-south| raw:: html
 
-   <a href="../fledge-south-http/index.html">South service</a>
+   <a href="../fledge-south-http_south/index.html">South service</a>
 
 North HTTP
 ==========
