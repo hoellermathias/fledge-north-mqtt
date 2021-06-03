@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # FLEDGE_BEGIN
-# See: http://fledge.readthedocs.io/
+# See: http://fledge-iot.readthedocs.io/
 # FLEDGE_END
 
 """ HTTP North plugin"""
@@ -77,7 +77,7 @@ _DEFAULT_CONFIG = {
 def plugin_info():
     return {
         'name': 'http',
-        'version': '1.9.0',
+        'version': '1.9.1',
         'type': 'north',
         'interface': '1.0',
         'config': _DEFAULT_CONFIG
