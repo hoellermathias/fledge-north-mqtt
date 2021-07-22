@@ -4,7 +4,7 @@
 # See: http://fledge-iot.readthedocs.io/
 # FLEDGE_END
 
-""" HTTP North plugin"""
+""" MQTT North plugin"""
 
 import aiohttp
 import asyncio
@@ -12,62 +12,70 @@ import json
 
 from fledge.common import logger
 from fledge.plugins.north.common.common import *
+import paho.mqtt.client as mqtt
 
 __author__ = "Ashish Jabble, Praveen Garg"
 __copyright__ = "Copyright (c) 2018 Dianomic Systems"
 __license__ = "Apache 2.0"
 __version__ = "${VERSION}"
 
-_LOGGER = logger.setup(__name__)
+_LOGGER = logger.setup(__name__, level=logging.INFO)
 
 
-http_north = None
+mqtt_north = None
 config = ""
 
-_CONFIG_CATEGORY_NAME = "HTTP"
-_CONFIG_CATEGORY_DESCRIPTION = "HTTP North Plugin"
+_CONFIG_CATEGORY_NAME = "MQTT"
+_CONFIG_CATEGORY_DESCRIPTION = "MQTT North Plugin"
 
 _DEFAULT_CONFIG = {
     'plugin': {
-         'description': 'HTTP North Plugin',
+         'description': 'MQTT North Plugin',
          'type': 'string',
-         'default': 'http_north',
+         'default': 'mqtt_north',
          'readonly': 'true'
     },
-    'url': {
-        'description': 'Destination URL',
+    'host': {
+        'description': 'Destination HOST or IP',
         'type': 'string',
-        'default': 'http://localhost:6683/sensor-reading',
+        'default': 'test.mosquitto.org',
         'order': '1',
-        'displayName': 'URL'
+        'displayName': 'HOST/IP'
+    },
+    'port': {
+        'description': 'Destination PORT',
+        'type': 'integer',
+        'default': '1883',
+        'order': '2',
+        'displayName': 'PORT'
+    },
+    'topic': {
+        'description': 'Publishing Topic',
+        'type': 'string',
+        'default': 'test',
+        'order': '3',
+        'displayName': 'TOPIC'
     },
     "source": {
          "description": "Source of data to be sent on the stream. May be either readings or statistics.",
          "type": "enumeration",
          "default": "readings",
          "options": [ "readings", "statistics" ],
-         'order': '2',
+         'order': '4',
          'displayName': 'Source'
-    },
-    "verifySSL": {
-        "description": "Verify SSL certificate",
-        "type": "boolean",
-        "default": "false",
-        'order': '3',
-        'displayName': 'Verify SSL'
     },
     "applyFilter": {
         "description": "Should filter be applied before processing data",
         "type": "boolean",
         "default": "false",
-        'order': '4',
+        'order': '5',
         'displayName': 'Apply Filter'
     },
     "filterRule": {
         "description": "JQ formatted filter to apply (only applicable if applyFilter is True)",
         "type": "string",
-        "default": ".[]",
-        'order': '5',
+        "default": "[.[]]",
+        'order': '6',
         'displayName': 'Filter Rule',
         "validity": "applyFilter == \"true\""
     }
@@ -76,8 +84,8 @@ _DEFAULT_CONFIG = {
 
 def plugin_info():
     return {
-        'name': 'http',
-        'version': '1.9.1',
+        'name': 'mqtt',
+        'version': '1.0',
         'type': 'north',
         'interface': '1.0',
         'config': _DEFAULT_CONFIG
@@ -85,8 +93,8 @@ def plugin_info():
 
 
 def plugin_init(data):
-    global http_north, config
-    http_north = HttpNorthPlugin()
+    global mqtt_north
+    mqtt_north = MqttNorthPlugin(data)
     config = data
     return config
 
@@ -94,32 +102,45 @@ def plugin_init(data):
 async def plugin_send(data, payload, stream_id):
     # stream_id (log?)
     try:
-        is_data_sent, new_last_object_id, num_sent = await http_north.send_payloads(payload)
+        is_data_sent, new_last_object_id, num_sent = await mqtt_north.send_payloads(payload)
     except asyncio.CancelledError:
-        pass
+        _LOGGER.exception('error @ plugin send')
     else:
         return is_data_sent, new_last_object_id, num_sent
 
 
 def plugin_shutdown(data):
-    pass
+    _LOGGER.debug('shutdown mqtt north')
+    mqtt_north.shutdown() 
 
 
 # TODO: North plugin can not be reconfigured? (per callback mechanism)
 def plugin_reconfigure():
     pass
 
-
-class HttpNorthPlugin(object):
+class MqttNorthPlugin(object):
     """ North HTTP Plugin """
 
-    def __init__(self):
+    def __init__(self, config):
         self.event_loop = asyncio.get_event_loop()
+        self.client = mqtt.Client()
+        self.host = config['host']['value']
+        self.port = int(config['port']['value'])
+        self.topic = config['topic']['value']
+        self.client.connect(self.host, self.port, 60)
+        self.config = config
+        
+        #_LOGGER.exception("init mqtt north plugin")
+
+    def shutdown(self):
+        self.client.disconnect()
 
     async def send_payloads(self, payloads):
         is_data_sent = False
         last_object_id = 0
         num_sent = 0
+        if len(payloads) == 0:
+            _LOGGER.debug("no data")
         try:
             payload_block = list()
 
@@ -132,6 +153,7 @@ class HttpNorthPlugin(object):
                 payload_block.append(read)
 
             num_sent = await self._send_payloads(payload_block)
+            _LOGGER.debug("Data sent, %s", str(num_sent))
             is_data_sent = True
         except Exception as ex:
             _LOGGER.exception("Data could not be sent, %s", str(ex))
@@ -140,30 +162,13 @@ class HttpNorthPlugin(object):
 
     async def _send_payloads(self, payload_block):
         """ send a list of block payloads"""
-
         num_count = 0
         try:
-            verify_ssl = False if config["verifySSL"]['value'] == 'false' else True
-            url = config['url']['value']
-            connector = aiohttp.TCPConnector(verify_ssl=verify_ssl)
-            async with aiohttp.ClientSession(connector=connector) as session:
-                result = await self._send(url, payload_block, session)
-        except:
-            pass
+            _LOGGER.debug('start sending')
+            self.client.publish("cent", json.dumps(payload_block)).wait_for_publish()
+            _LOGGER.debug('finished sending')
+        except Exception as ex:
+            _LOGGER.exception("Data could not be sent, %s", str(ex))
         else: 
             num_count += len(payload_block)
         return num_count
-
-    async def _send(self, url, payload, session):
-        """ Send the payload, using provided socket session """
-        headers = {'content-type': 'application/json'}
-        async with session.post(url, data=json.dumps(payload), headers=headers) as resp:
-            result = await resp.text()
-            status_code = resp.status
-            if status_code in range(400, 500):
-                _LOGGER.error("Bad request error code: %d, reason: %s", status_code, resp.reason)
-                raise Exception
-            if status_code in range(500, 600):
-                _LOGGER.error("Server error code: %d, reason: %s", status_code, resp.reason)
-                raise Exception
-            return result
