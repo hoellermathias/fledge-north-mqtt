@@ -9,6 +9,7 @@
 import aiohttp
 import asyncio
 import json
+import logging
 
 from fledge.common import logger
 from fledge.plugins.north.common.common import *
