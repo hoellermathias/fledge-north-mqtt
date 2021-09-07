@@ -167,7 +167,10 @@ class MqttNorthPlugin(object):
         try:
             _LOGGER.debug('start sending')
             for p in payload_block:
-            	self.client.publish(f'{self.topic}/{p["asset"]}', json.dumps(p)).wait_for_publish()
+            	self.client.publish(f'{self.topic}/{p["asset"]}', json.dumps(p))
+            if not self.client.is_connected:
+            	self.client.reconnect()
+            self.client.loop(timeout=5)
             _LOGGER.debug('finished sending')
         except Exception as ex:
             _LOGGER.exception("Data could not be sent, %s", str(ex))
