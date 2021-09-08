@@ -128,12 +128,14 @@ class MqttNorthPlugin(object):
         self.host = config['host']['value']
         self.port = int(config['port']['value'])
         self.topic = config['topic']['value']
-        self.client.connect(self.host, self.port, 60)
+        self.client.connect(self.host, self.port, 30)
+        self.client.start_loop()
         self.config = config
         
         #_LOGGER.exception("init mqtt north plugin")
 
     def shutdown(self):
+        self.client.stop_loop()
         self.client.disconnect()
 
     async def send_payloads(self, payloads):
@@ -167,10 +169,9 @@ class MqttNorthPlugin(object):
         try:
             _LOGGER.debug('start sending')
             for p in payload_block:
-            	self.client.publish(f'{self.topic}/{p["asset"]}', json.dumps(p))
-            if not self.client.is_connected:
-            	self.client.reconnect()
-            self.client.loop(timeout=5)
+            	self.client.publish(f'{self.topic}/{p["asset"]}', json.dumps(p)).wait_for_publish()
+            #if not self.client.is_connected:
+            #	self.client.reconnect()
             _LOGGER.debug('finished sending')
         except Exception as ex:
             _LOGGER.exception("Data could not be sent, %s", str(ex))
