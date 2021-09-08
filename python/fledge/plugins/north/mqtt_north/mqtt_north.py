@@ -129,13 +129,13 @@ class MqttNorthPlugin(object):
         self.port = int(config['port']['value'])
         self.topic = config['topic']['value']
         self.client.connect(self.host, self.port, 30)
-        self.client.start_loop()
+        self.client.loop_start()
         self.config = config
         
         #_LOGGER.exception("init mqtt north plugin")
 
     def shutdown(self):
-        self.client.stop_loop()
+        self.client.loop_stop()
         self.client.disconnect()
 
     async def send_payloads(self, payloads):
